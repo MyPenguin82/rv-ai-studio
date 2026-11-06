@@ -2,9 +2,18 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 const SPACE_URL = "https://lightricks-ltx-2-5.hf.space";
+const API_NAME = "v2/run";
 
+// Vercel Hobby plan max = 300
+export const maxDuration = 300;
+
+// Total time budget for the whole request (must be below maxDuration)
+const TOTAL_BUDGET_MS = 280_000;
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+  const remainingMs = () => TOTAL_BUDGET_MS - (Date.now() - startedAt);
+
   try {
     // 1. Authentication
     const supabase = await createClient();
@@ -22,12 +31,18 @@ export async function POST(request: Request) {
     }
 
     // 2. Request body
-    const body = await request.json();
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid request body." },
+        { status: 400 }
+      );
+    }
 
     const prompt =
-      typeof body.prompt === "string"
-        ? body.prompt.trim()
-        : "";
+      typeof body.prompt === "string" ? body.prompt.trim() : "";
 
     const duration = Number(body.duration ?? 2);
     const width = Number(body.width ?? 512);
@@ -76,41 +91,41 @@ export async function POST(request: Request) {
       );
     }
 
-    const headers = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${hfToken}`,
-    };
-
     // 4. Start generation
     const startResponse = await fetch(
-      `${SPACE_URL}/gradio_api/call/v2/run`,
+      `${SPACE_URL}/gradio_api/call/${API_NAME}`,
       {
         method: "POST",
-        headers,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${hfToken}`,
+        },
         body: JSON.stringify({
-          prompt,
-          image_path: null,
-          height,
-          width,
-          duration_s: duration,
-          seed: Math.floor(Math.random() * 2147483647),
-          decoder: "conv",
-          auto_len: false,
-          randomize_seed: true,
-          do_enhance: false,
+          data: [
+            prompt,
+            null, // image_path
+            height,
+            width,
+            duration,
+            Math.floor(Math.random() * 2147483647), // seed
+            "conv", // decoder
+            false, // auto_len
+            true, // randomize_seed
+            false, // do_enhance
+          ],
         }),
-        signal: AbortSignal.timeout(600000),
+        signal: AbortSignal.timeout(Math.max(remainingMs(), 1000)),
       }
     );
 
     const startText = await startResponse.text();
 
     if (!startResponse.ok) {
-      console.error("HF START ERROR:", startText);
+      console.error("HF START ERROR:", startText.slice(0, 500));
 
       return NextResponse.json(
         {
-          error: `Hugging Face error ${startResponse.status}: ${startText.slice(0, 500)}`,
+          error: `Hugging Face error ${startResponse.status}: ${startText.slice(0, 300)}`,
         },
         { status: 502 }
       );
@@ -125,7 +140,8 @@ export async function POST(request: Request) {
 
       return NextResponse.json(
         {
-          error: "Hugging Face returned HTML or invalid JSON. Check Space access.",
+          error:
+            "Hugging Face returned HTML or invalid JSON. Check Space access.",
         },
         { status: 502 }
       );
@@ -140,23 +156,22 @@ export async function POST(request: Request) {
       );
     }
 
-    // 5. Wait for generation result
+    // 5. Wait for generation result (same API_NAME as start)
     const resultResponse = await fetch(
-      `${SPACE_URL}/gradio_api/call/run/${encodeURIComponent(eventId)}`,
+      `${SPACE_URL}/gradio_api/call/${API_NAME}/${encodeURIComponent(eventId)}`,
       {
         method: "GET",
         headers: {
           Accept: "text/event-stream",
           Authorization: `Bearer ${hfToken}`,
         },
-        signal: AbortSignal.timeout(600000),
+        signal: AbortSignal.timeout(Math.max(remainingMs(), 1000)),
       }
     );
 
     if (!resultResponse.ok) {
       const errorText = await resultResponse.text();
-
-      console.error("HF RESULT ERROR:", errorText);
+      console.error("HF RESULT ERROR:", errorText.slice(0, 500));
 
       return NextResponse.json(
         { error: "Could not retrieve generated video." },
@@ -179,13 +194,11 @@ export async function POST(request: Request) {
         ?.slice(6)
         .trim();
 
-      const dataLine = lines.find((line) =>
-        line.startsWith("data:")
-      );
+      const dataLine = lines.find((line) => line.startsWith("data:"));
 
       if (eventName === "error") {
-        generationError = dataLine?.slice(5).trim() ||
-          "Hugging Face generation failed.";
+        generationError =
+          dataLine?.slice(5).trim() || "Hugging Face generation failed.";
         break;
       }
 
@@ -202,10 +215,7 @@ export async function POST(request: Request) {
     if (generationError) {
       console.error("HF GENERATION ERROR:", generationError);
 
-      return NextResponse.json(
-        { error: generationError },
-        { status: 502 }
-      );
+      return NextResponse.json({ error: generationError }, { status: 502 });
     }
 
     // 6. Extract video URL
@@ -216,12 +226,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const firstOutput = outputData[0] as {
-      url?: string;
-      path?: string;
-    };
+    const first = outputData[0] as
+      | string
+      | { url?: string; path?: string; video?: { url?: string; path?: string } };
 
-    const fileLocation = firstOutput.url || firstOutput.path;
+    const fileLocation =
+      typeof first === "string"
+        ? first
+        : first.url || first.path || first.video?.url || first.video?.path;
 
     if (!fileLocation) {
       return NextResponse.json(
@@ -234,7 +246,7 @@ export async function POST(request: Request) {
       ? fileLocation
       : fileLocation.startsWith("/")
         ? `${SPACE_URL}${fileLocation}`
-        : `${SPACE_URL}/gradio_api/file=${encodeURIComponent(fileLocation)}`;
+        : `${SPACE_URL}/gradio_api/file=${fileLocation}`;
 
     // 7. Success
     return NextResponse.json({
@@ -242,16 +254,27 @@ export async function POST(request: Request) {
       videoUrl,
       prompt,
     });
-
   } catch (error) {
     console.error("VIDEO API ERROR:", error);
+
+    const isTimeout =
+      error instanceof Error &&
+      (error.name === "TimeoutError" || error.name === "AbortError");
+
+    if (isTimeout) {
+      return NextResponse.json(
+        {
+          error:
+            "Video generation took too long. Please try a shorter duration or smaller size.",
+        },
+        { status: 504 }
+      );
+    }
 
     return NextResponse.json(
       {
         error:
-          error instanceof Error
-            ? error.message
-            : "Something went wrong.",
+          error instanceof Error ? error.message : "Something went wrong.",
       },
       { status: 500 }
     );
