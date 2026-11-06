@@ -3,8 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 
 const SPACE_URL = "https://lightricks-ltx-2-5.hf.space";
 
-// Vercel ফ্রি প্ল্যানের সর্বোচ্চ সীমা অনুযায়ী 300 সেট করা হলো
-export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {
