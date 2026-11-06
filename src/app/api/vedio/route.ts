@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const SPACE_URL = "https://lightricks-ltx-2-5.hf.space";
 
-export const maxDuration = 300;
+export const maxDuration = 250;
 
 export async function POST(request: Request) {
   try {
