@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 
 const SPACE_URL = "https://lightricks-ltx-2-5.hf.space";
 
-export const maxDuration = 250;
+// Vercel ফ্রি প্ল্যানের সর্বোচ্চ সীমা অনুযায়ী 300 সেট করা হলো
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {
@@ -83,7 +84,6 @@ export async function POST(request: Request) {
     };
 
     // 4. Start generation
-    // Named parameters follow the supplied OpenAPI schema.
     const startResponse = await fetch(
       `${SPACE_URL}/gradio_api/call/v2/run`,
       {
