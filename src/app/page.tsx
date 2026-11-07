@@ -92,6 +92,14 @@ export default function Home() {
     setHistoryLoading(true);
     setHistoryError("");
 
+    // Best-effort cleanup: delete this user's expired chats to free storage.
+    // (The scheduled database job in supabase/chat-retention.sql does the same.)
+    await supabase
+      .from("chats")
+      .delete()
+      .eq("user_id", user.id)
+      .lt("expires_at", new Date().toISOString());
+
     const { data, error } = await supabase
       .from("chats")
       .select("id, title, messages, created_at, expires_at")
@@ -285,6 +293,10 @@ export default function Home() {
           user_id: userId,
           title,
           messages: updatedMessages,
+          // Chats are kept for 3 days, then deleted.
+          expires_at: new Date(
+            Date.now() + 3 * 24 * 60 * 60 * 1000
+          ).toISOString(),
         })
         .select("id")
         .single();
