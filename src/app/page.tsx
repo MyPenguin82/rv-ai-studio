@@ -697,12 +697,12 @@ export default function Home() {
       {/* SIDEBAR */}
       <aside className="hidden w-64 shrink-0 border-r border-white/10 bg-[#121212] p-5 md:flex md:flex-col shadow-2xl">
         <div className="flex items-center gap-3">
-          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-red-500/30 bg-black/50 p-1 shadow-[0_0_15px_rgba(239,68,68,0.3)]">
+          <div className="relative h-12 w-12 shrink-0">
             <Image
               src="/logo.png"
               alt="RV Developers Logo"
-              width={40}
-              height={40}
+              width={48}
+              height={48}
               className="object-contain"
             />
           </div>
@@ -781,8 +781,8 @@ export default function Home() {
       <section className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex items-center justify-between border-b border-white/10 bg-[#121212]/80 backdrop-blur-md p-4 sticky top-0 z-40 shrink-0">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="md:hidden h-8 w-8 relative shrink-0">
-              <Image src="/logo.png" alt="Logo" width={32} height={32} className="object-contain" />
+            <div className="md:hidden h-10 w-10 relative shrink-0">
+              <Image src="/logo.png" alt="Logo" width={40} height={40} className="object-contain" />
             </div>
             <span className="truncate font-bold tracking-tight text-white">RV AI Studio</span>
 
@@ -940,8 +940,8 @@ export default function Home() {
         >
           {messages.length === 0 ? (
             <div className="mb-10 mt-6 text-center max-w-xl">
-              <div className="mx-auto mb-6 h-20 w-20 relative rounded-2xl border border-red-500/30 bg-black/60 p-2 shadow-[0_0_30px_rgba(239,68,68,0.4)]">
-                <Image src="/logo.png" alt="RV Logo" width={80} height={80} className="object-contain" />
+              <div className="mx-auto mb-6 h-28 w-28 relative">
+                <Image src="/logo.png" alt="RV Logo" width={112} height={112} className="object-contain" priority />
               </div>
               <h2 className="text-3xl font-extrabold md:text-5xl tracking-tight bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
                 What will you create today?
